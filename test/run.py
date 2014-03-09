@@ -159,7 +159,8 @@ def sharding():
 			i = i + len(local)
 
 	# Ha.
-	for e,rating in { k: mean(map(lambda r: r['rating'],v)) for k,v in itertools.groupby(ratings, lambda r : r['target']) }.items():
+
+	for e,rating in { k: mean({r['source']: r['rating'] for r in v}.values()) for k,v in itertools.groupby(ratings, lambda r : r['target']) }.items():
 		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': rating, 'duration': duration })
 
 	u = usage()
