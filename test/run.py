@@ -116,7 +116,7 @@ def simple():
 # Update some ratings
 @test()
 def updates():
-	s = 'test'hg
+	s = 'test'
 	for e in random.sample(entities, 5):
 		put(e, s, random.randrange(1,10))
 	for e in random.sample(entities, 5):
