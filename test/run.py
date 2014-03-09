@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-import random, sys, os, requests, json, uuid, redis, subprocess, time, shutil, math, string
+import random, sys, os, requests, json, uuid, redis, subprocess, time, shutil, math, string, itertools
 
 base = os.path.dirname(os.path.abspath(os.path.join(__file__, '..')))
 key = sys.argv[1] if len(sys.argv) > 1 else ''.join(random.sample((string.ascii_uppercase + string.digits)*10, 10))
 
-# Seed the random number generator with a know value
+# Seed the random number generator with a known value
 random.seed(key)
 
 n = random.randrange(3,6)
@@ -76,70 +76,105 @@ def mksources(n = 1):
 print("Running test #"+key)
 
 # Give the server some time to start up
-time.sleep(3)
+time.sleep(1)
 
-c = count()
+tests = [ ]
+def test():
+	def wrapper(f):
+		def wrapped(*args):
+			flush() # Clean the database before subsequent tests
+			f(*args)
+		tests.append(wrapped)
+		return wrapped
+	return wrapper
 
-flush()
-# Initial check to ensure null ratings come back for entities
-for e in random.sample(entities, 5):
-	result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': None })
+@test()
+def emptiness():
+	# Initial check to ensure null ratings come back for entities
+	for e in random.sample(entities, 5):
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': None })
 
 # Check to see if the student is actually using redis by monitoring how
 # many commands have been run between now and then
-result({ 'type': 'COMMANDS_RUN', 'count': count() - c })
+@test()
+def commands():	
+	c = count()
+	s = mksources()[0]
+	put(e, s, random.randrange(1,10))
+	result({ 'type': 'COMMANDS_RUN', 'count': count() - c })
 
 # Put in some ratings for things
-s = mksources()[0]
-for e in random.sample(entities, 5):
-	value = random.randrange(1,10)
-	put(e, s, value)
-	result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
+@test()
+def simple():
+	s = mksources()[0]
+	for e in random.sample(entities, 5):
+		value = random.randrange(1,10)
+		put(e, s, value)
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
 
 # Update some ratings
-for e in random.sample(entities, 5):
-	value = random.randrange(1,10)
-	put(e, s, value)
-	result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
+@test()
+def updates():
+	s = mksources()[0]
+	for e in random.sample(entities, 5):
+		put(e, s, random.randrange(1,10))
+	for e in random.sample(entities, 5):
+		value = random.randrange(1,10)
+		put(e, s, value)
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
 
-flush()
 # Add ratings from different sources
-for e in random.sample(entities, 30):
-	ratings = [ { 'source': s, 'rating': random.randrange(1,10) } for s in random.sample(mksources(50), 30) ]
-	rating = mean(map(lambda a: a['rating'], ratings))
-	for r in ratings: put(e, r['source'], r['rating'])
-	result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': rating })
+@test()
+def sources():
+	for e in random.sample(entities, 30):
+		ratings = [ { 'source': s, 'rating': random.randrange(1,10) } for s in random.sample(mksources(50), 30) ]
+		rating = mean(map(lambda a: a['rating'], ratings))
+		for r in ratings: put(e, r['source'], r['rating'])
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': rating })
+
 
 # Pump enough ratings to make use of shards by monitoring the redis memory usage; we keep
 # going until 75% of all memory is filled or until we've hit some large number of ratings 
 # that have been put in or if the memory usage isn't increasing between runs.
-i = 0
-last = 0
-perf = [ ]
-while(last < sum(usage()) < (0.75*n*limit) or i > 100000):
-	last = sum(usage())
-	for e in random.sample(entities, 10):
-		sources = mksources(1000)
-		ratings = [ { 'source': s, 'rating': random.randrange(1,10) } for s in random.sample(sources, random.randrange(1, len(sources))) ]
-		rating = mean(map(lambda a: a['rating'], ratings))
-		start = time.time()
-		for r in ratings: put(e, r['source'], r['rating'])
-		end = time.time()
-		duration = end - start
-		perf.append(duration/len(ratings))
-		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': rating, 'samples': len(ratings), 'duration': duration })
-		i = i + len(ratings)
+@test()
+def sharding():
+	i = 0
+	last = 0
+	perf = [ ]
+	ratings = [ ]
 
-u = usage()
-# How much of the data store has been used
-result({ 'type': 'EXPECTED_USAGAE', 'minimum': 0.75*n*limit, 'result': sum(u) })
-# What is the distribution like between data stores
-result({ 'type': 'USAGE_STDDEV', 'result': stddev(u) })
-# How many ratings did we manage to throw in
-result({ 'type': 'TOTAL_RATINGS', 'result': i })
-# How fast was it approximately
-result({ 'type': 'PERF_AVG', 'result': mean(perf) })
-result({ 'type': 'PERF_STDDEV', 'result': stddev(perf) })
+	while(last < sum(usage()) < (0.75*n*limit) or i < 10):
+		last = sum(usage())
+		for e in random.sample(entities, 10):
+			sources = mksources(1000)
+			local = [ { 'target': e, 'source': s, 'rating': random.randrange(1,10) } for s in random.sample(sources, random.randrange(1, len(sources))) ]
+			rating = mean(map(lambda a: a['rating'], local))
+			start = time.time()
+			for r in local: put(e, r['source'], r['rating'])
+			end = time.time()
+			duration = end - start
+			perf.append(duration/len(local))
+			ratings += local
+			i = i + len(local)
+
+	# Ha.
+	for e,rating in { k: mean(map(lambda r: r['rating'],v)) for k,v in itertools.groupby(ratings, lambda r : r['target']) }.items():
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': rating, 'duration': duration })
+
+	u = usage()
+	# How much of the data store has been used
+	result({ 'type': 'EXPECTED_USAGAE', 'minimum': 0.75*n*limit, 'result': sum(u) })
+	# What is the distribution like between data stores
+	result({ 'type': 'USAGE_STDDEV', 'result': stddev(u) })
+	# How many ratings did we manage to throw in
+	result({ 'type': 'TOTAL_RATINGS', 'result': i })
+	# How fast was it approximately
+	result({ 'type': 'PERF_AVG', 'result': mean(perf) })
+	result({ 'type': 'PERF_STDDEV', 'result': stddev(perf) })
+
+# Go through all the tests and run them
+for test in tests:
+	test()
 
 # Shut. down. everything.
 server.terminate()
