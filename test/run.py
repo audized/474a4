@@ -111,18 +111,18 @@ def simple():
 	for e in random.sample(entities, 5):
 		value = random.randrange(1,10)
 		put(e, s, value)
-		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': value })
 
 # Update some ratings
 @test()
 def updates():
-	s = 'test'
+	s = 'test'hg
 	for e in random.sample(entities, 5):
 		put(e, s, random.randrange(1,10))
 	for e in random.sample(entities, 5):
 		value = random.randrange(1,10)
 		put(e, s, value)
-		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(s), 'expected': value })
+		result({ 'type': 'EXPECT_RATING', 'entity': e, 'rating': get(e), 'expected': value })
 
 # Add ratings from different sources
 @test()
