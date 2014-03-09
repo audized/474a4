@@ -82,6 +82,7 @@ tests = [ ]
 def test():
 	def wrapper(f):
 		def wrapped(*args):
+			print("Running test %s" % (f.__name__))
 			flush() # Clean the database before subsequent tests
 			f(*args)
 		tests.append(wrapped)
@@ -99,14 +100,14 @@ def emptiness():
 @test()
 def commands():	
 	c = count()
-	s = mksources()[0]
-	put(e, s, random.randrange(1,10))
+	s = 'test'
+	put(entities[0], s, random.randrange(1,10))
 	result({ 'type': 'COMMANDS_RUN', 'count': count() - c })
 
 # Put in some ratings for things
 @test()
 def simple():
-	s = mksources()[0]
+	s = 'test'
 	for e in random.sample(entities, 5):
 		value = random.randrange(1,10)
 		put(e, s, value)
@@ -115,7 +116,7 @@ def simple():
 # Update some ratings
 @test()
 def updates():
-	s = mksources()[0]
+	s = 'test'
 	for e in random.sample(entities, 5):
 		put(e, s, random.randrange(1,10))
 	for e in random.sample(entities, 5):
