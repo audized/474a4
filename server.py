@@ -36,13 +36,25 @@ def put_rating(entity):
 	if isinstance(rating, int): rating = float(rating)
 	if not isinstance(rating, float): return abort(400)
 
-	# Update the rating for the entity
-	key = '/rating/'+entity
-	client.set(key, rating)
+	rating_key = entity+'/ratings'
+	average_key = entity+'/average'
+	old_rating = client.zscore(rating_key, source)
+	average = client.get(average_key)
 
-	# Return the new rating for the entity
+	# Update user rating and average rating for the tea only if the user's new
+	# rating is not the same as his old one
+	# Or add if the user has not rated the tea yet
+	if not old_rating or old_rating != rating:
+		client.zadd(rating_key, rating, source)
+		total = 0.0
+		for user in client.zrange(rating_key, 0, -1):
+			total += float(client.zscore(rating_key, user))
+		average = total / int(client.zcard(rating_key))
+		client.set(average_key, average)
+	
+	# Return the new average rating for the entity
 	return {
-		"rating": rating
+		"rating": average
 	}
 
 
@@ -53,7 +65,7 @@ def put_rating(entity):
 @route('/rating/<entity>', method='GET')
 def get_rating(entity):
 	return {
-		"rating": client.get('/rating/'+entity)
+		"rating": client.get(entity+'/average')
 	}
 
 # Add a route for deleting all the rating information which can be accessed as:
@@ -62,8 +74,15 @@ def get_rating(entity):
 # { rating: null }
 @route('/rating/<entity>', method='DELETE')
 def delete_rating(entity):
-	count = client.delete('/rating/'+entity)
-	if count == 0: return abort(404)
+	# Remove average
+	count = client.delete(entity+'/average')
+	if count == 0:
+		return abort(404)
+	else:
+		# Remove all user ratings
+		rating_key = entity+'/ratings'
+		for user in client.zrange(rating_key, 0, -1):
+			client.zrem(rating_key, user)
 	return { "rating": None }
 
 # Fire the engines

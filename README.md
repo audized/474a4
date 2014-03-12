@@ -3,6 +3,8 @@
 **Due: Wednesday, March 12th, 2014, 23:59:59 PST**<br/>
 **Groups: at most 2 members each**
 
+## Overview
+
 TNI's Tea Emporium has just released their new line of teas! They need to know
 what their customers think and, with all their customers being fluent computer
 programmers, their ratings are happily submitted over HTTP.
@@ -36,9 +38,6 @@ A virtual machine image which closely matches TNI's Tea Emporium servers has
 been released and available as a testing environment for you at the following url: 
 http://sfu-innovation.github.io/474-14-1/vm.html
 
-A test script has been provided for you, allowing you to evaluate your system. It
-can be run as: test/run.py. Nothing in the "test" folder is to be modified.
-
 You can, of course, manually test your system by using basic curl commands:
 
 Setting a rating:
@@ -55,3 +54,52 @@ Removing a rating:
 ```
 curl -XDELETE http://localhost:2500/rating/maharaja-chai-oolong-tea
 ```
+
+## Testing
+
+A test script has been provided for you, allowing you to evaluate your system. It
+can be run as: test/run.py. Nothing in the "test" folder is to be modified.
+
+```
+test/run.py --results run.log
+test/grade.py --results run.log
+```
+
+If you wish to re-run a particular test (e.g. where it says #5US6IYNXYI) you
+may do so by passing in the "key" parameter to run. Each key should produce
+repeatable results.
+
+```
+test/run.py --key 5US6IYNXYI --results run.log
+```
+
+## Setup
+
+### Ubuntu
+
+```bash
+sudo apt-get install redis-server python python-pip git
+sudo pip install -r requirements.txt
+```
+
+The redis-server version on Ubuntu below 13.04 is too low to run the test tool.
+You can get the latest version of redis-server for these platforms by running
+the following commands:
+
+```bash
+sudo add-apt-repository ppa:chris-lea/redis-server
+sudo apt-get update
+sudo apt-get upgrade
+```
+
+### Mac OS X
+
+```bash
+sudo ruby -e "$(curl -fsSL https://raw.github.com/Homebrew/homebrew/go/install)"
+sudo brew install redis python git
+sudo pip install -r requirements.txt
+```
+
+### Windows
+
+GLHF.
