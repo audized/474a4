@@ -1,6 +1,6 @@
 
 # Get the good stuff
-import redis, json, mimeparse, os, sys
+import redis, json, mimeparse, os, sys, hashlib
 from bottle import route, run, request, response, abort
 
 config = { 'servers': [{ 'host': 'localhost', 'port': 6379 }] }
@@ -9,7 +9,7 @@ if (len(sys.argv) > 1):
 	config = json.loads(sys.argv[1])
 
 # Connect to a single Redis instance
-client = redis.StrictRedis(host=config['servers'][0]['host'], port=config['servers'][0]['port'], db=0)
+#client = redis.StrictRedis(host=config['servers'][0]['host'], port=config['servers'][0]['port'], db=0)
 
 # Add a route for a user updating their rating of something which can be accessed as:
 # curl -XPUT -H'Content-type: application/json' -d'{ "rating": 5, "source": "charles" }' http://localhost/rating/bob
@@ -38,17 +38,22 @@ def put_rating(entity):
 
 	rating_key = entity+'/ratings'
 	average_key = entity+'/average'
+	client = get_redis_client(entity)
 	old_rating = client.zscore(rating_key, source)
 	average = client.get(average_key)
 
 	# Update user rating and average rating for the tea only if the user's new
 	# rating is not the same as his old one
-	# Or add if the user has not rated the tea yet
+	# Or add the new rating if the user has not rated the tea yet
 	if not old_rating or old_rating != rating:
+		total = rating
+		if not average:
+			average = 0.0
+		total += float(average) * int(client.zcard(rating_key))
+		# Take away the old rating if user has already rated the tea
+		if old_rating:
+			total -= float(old_rating)
 		client.zadd(rating_key, rating, source)
-		total = 0.0
-		for user in client.zrange(rating_key, 0, -1):
-			total += float(client.zscore(rating_key, user))
 		average = total / int(client.zcard(rating_key))
 		client.set(average_key, average)
 	
@@ -64,6 +69,7 @@ def put_rating(entity):
 # { rating: 5 }
 @route('/rating/<entity>', method='GET')
 def get_rating(entity):
+	client = get_redis_client(entity)
 	return {
 		"rating": client.get(entity+'/average')
 	}
@@ -75,6 +81,7 @@ def get_rating(entity):
 @route('/rating/<entity>', method='DELETE')
 def delete_rating(entity):
 	# Remove average
+	client = get_redis_client(entity)
 	count = client.delete(entity+'/average')
 	if count == 0:
 		return abort(404)
@@ -84,6 +91,15 @@ def delete_rating(entity):
 		for user in client.zrange(rating_key, 0, -1):
 			client.zrem(rating_key, user)
 	return { "rating": None }
+
+# Return a redis client given an entity
+def get_redis_client(entity):
+	# Hash the entity to a hexadecimal value and then convert the value to int
+	h = hashlib.new('md5')
+	h.update(entity)
+	partition = int(long(h.hexdigest(), base=16) % len(config['servers']))
+	# Connect to the redis instance and return the client object
+	return redis.StrictRedis(host=config['servers'][partition]['host'], port=config['servers'][partition]['port'], db=0)
 
 # Fire the engines
 if __name__ == '__main__':
