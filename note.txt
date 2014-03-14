@@ -1,0 +1,6 @@
+1. The submitted code does not check against invalid user input for rating. In case of invalid rating input, a 400 Bad Request will be returned. This can be done by adding the following snippet to line 34 (suppose that all ratings are [0, 10]):
+
+if float(rating) < 0.0 or float(rating) > 10.0:
+	return abort(400)
+
+2. The submitted code does not check for authorization. For instance, any user can delete a tea average rating. Usually, this can only be performed by an admin. User with incorrect authorization credentials will be returned a 401 Unauthroized.
