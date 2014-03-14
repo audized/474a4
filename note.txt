@@ -3,4 +3,4 @@
 if float(rating) < 0.0 or float(rating) > 10.0:
 	return abort(400)
 
-2. The submitted code does not check for authorization. For instance, any user can delete a tea average rating. Usually, this can only be performed by an admin. User with incorrect authorization credentials will be returned a 401 Unauthroized.
+2. The submitted code lacks authentication and does not check for authorization. For instance, any user can delete a tea average rating. Usually, this can only be done by an admin. User with incorrect authentication and/or authorization credentials will be returned a 401 Unauthroized.
