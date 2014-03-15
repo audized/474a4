@@ -4,6 +4,7 @@ import redis, json, mimeparse, os, sys, hashlib
 from bottle import route, run, request, response, abort
 
 config = { 'servers': [{ 'host': 'localhost', 'port': 6379 }] }
+hash_algorithm = 'sha1'
 
 if (len(sys.argv) > 1):
 	config = json.loads(sys.argv[1])
@@ -95,7 +96,7 @@ def delete_rating(entity):
 # Return a redis client given an entity
 def get_redis_client(entity):
 	# Hash the entity to a hexadecimal value and then convert the value to int
-	h = hashlib.new('md5')
+	h = hashlib.new(hash_algorithm)
 	h.update(entity)
 	partition = int(long(h.hexdigest(), base=16) % len(config['servers']))
 	# Connect to the redis instance and return the client object
